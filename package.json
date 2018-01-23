@@ -1,0 +1,13 @@
+{
+  "name": "crawler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.coffee",
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.6.0",
+    "coffee": "^4.1.0",
+    "request": "^2.83.0"
+  }
+}
