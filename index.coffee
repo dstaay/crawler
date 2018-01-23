@@ -2,7 +2,6 @@ request = require 'request'
 async = require 'async'
 url = require 'url'
 
-
 class Node
   constructor: (@url) ->
     @links = {}
@@ -13,13 +12,12 @@ check = (queue) ->
 
 main = (node, cb) ->
   root = node
-  node.url.target = node.url.hostname.concat(node.url.pathname)
 
   queue = []
   queue.push(node)
 
   seen = {}
-  seen[node.url.target] = node
+  seen[node.url.pathname] = node
 
   async.until check.bind(null, queue), (uCb) ->
 
@@ -30,7 +28,7 @@ main = (node, cb) ->
       batch.push(queue.pop()) 
 
     async.each batch, (currentNode, eCb) ->
-      fullUrl = currentNode.url.protocol + '//' + currentNode.url.target
+      fullUrl = currentNode.url.protocol + '//' + currentNode.url.host + currentNode.url.pathname
       console.log 'Crawling', fullUrl
 
       request fullUrl, (err, res, body) ->
@@ -52,16 +50,15 @@ main = (node, cb) ->
           if !candidateUrl.host
             candidateUrl.host = root.url.host
 
-          candidateUrl.target = candidateUrl.host.concat(candidateUrl.pathname)
 
           # create a new node, and push since needed
-          if !seen[candidateUrl.target]
+          if !seen[candidateUrl.pathname]
             newNode = new Node(candidateUrl)
             queue.push(newNode)
-            seen[candidateUrl.target] = newNode
+            seen[candidateUrl.pathname] = newNode
           else # already exists, so use that
-            newNode = seen[candidateUrl.target]
-          currentNode.links[candidateUrl.target] = newNode
+            newNode = seen[candidateUrl.pathname]
+          currentNode.links[candidateUrl.pathname] = newNode
         return eCb()
     , uCb
   , (err) ->
@@ -71,7 +68,7 @@ main = (node, cb) ->
     keys = Object.keys(seen)
     for key in keys
       node = seen[key]
-      console.log 'Page', node.url.target
+      console.log 'Path', node.url.path
       for link in Object.keys(node.links)
         console.log '--->', link
     return cb()
