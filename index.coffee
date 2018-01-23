@@ -40,16 +40,20 @@ main = (node, cb) ->
 
         for link in links
           link = link.slice(6, -1)
-          candidateUrl = url.parse(link)
+          # case of '//'
+          if link[0] == '/' && link[1] == '/'
+            link = currentNode.url.protocol + link
+            candidateUrl = url.parse(link)
+          # case of indirect references
+          else if link[0] == '/' || link[0] == '.'
+            candidateUrl = url.parse(url.resolve(root.url.href, link))
+          # standard url
+          else
+            candidateUrl = url.parse(link)
 
           # external link, skip
           if candidateUrl.host != root.url.host
             continue
-
-          # indirect reference
-          if !candidateUrl.host
-            candidateUrl.host = root.url.host
-
 
           # create a new node, and push since needed
           if !seen[candidateUrl.pathname]
