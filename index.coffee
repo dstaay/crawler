@@ -2,15 +2,15 @@ request = require 'request'
 async = require 'async'
 url = require 'url'
 
+SITE = process.env.SITE || 'http://www.google.com'
+WORKERS = process.env.WORKERS || 40
+
 class Node
   constructor: (@url) ->
     @links = {}
 
-check = (queue) ->
-  console.log 'Current Queue Length', queue.length
-  return (queue.length == 0)
-
 main = (node, cb) ->
+  processed = 0
   root = node
 
   queue = []
@@ -19,56 +19,53 @@ main = (node, cb) ->
   seen = {}
   seen[node.url.pathname] = node
 
-  async.until check.bind(null, queue), (uCb) ->
+  q = async.queue (currentNode, eCb) ->
+    fullUrl = currentNode.url.protocol + '//' + currentNode.url.host + currentNode.url.pathname
+    console.log 'Crawling', currentNode.url.pathname
 
-    parellelLimit = Math.min(20, queue.length)
+    request fullUrl, (err, res, body) ->
+      eCb(err) if err
 
-    batch = []
-    while batch.length < parellelLimit
-      batch.push(queue.pop()) 
+      links = body.match(/href=".*?"/g) 
 
-    async.each batch, (currentNode, eCb) ->
-      fullUrl = currentNode.url.protocol + '//' + currentNode.url.host + currentNode.url.pathname
-      console.log 'Crawling', fullUrl
+      return eCb() unless links
 
-      request fullUrl, (err, res, body) ->
-        eCb(err) if err
+      for link in links
+        link = link.slice(6, -1)
+        # case of '//'
+        if link[0] == '/' && link[1] == '/'
+          link = currentNode.url.protocol + link
+          candidateUrl = url.parse(link)
+        # case of indirect references
+        else if link[0] == '/' || link[0] == '.'
+          candidateUrl = url.parse(url.resolve(root.url.href, link))
+        # standard url
+        else
+          candidateUrl = url.parse(link)
 
-        links = body.match(/href=".*?"/g) 
+        # external link, skip
+        if candidateUrl.host != root.url.host
 
-        return eCb() unless links
+          continue
 
-        for link in links
-          link = link.slice(6, -1)
-          # case of '//'
-          if link[0] == '/' && link[1] == '/'
-            link = currentNode.url.protocol + link
-            candidateUrl = url.parse(link)
-          # case of indirect references
-          else if link[0] == '/' || link[0] == '.'
-            candidateUrl = url.parse(url.resolve(root.url.href, link))
-          # standard url
-          else
-            candidateUrl = url.parse(link)
+        # create a new node, and push since needed
+        if !seen[candidateUrl.pathname]
+          newNode = new Node(candidateUrl)
+          q.push(newNode)
+          seen[candidateUrl.pathname] = newNode
+        else # already exists, so use that
+          newNode = seen[candidateUrl.pathname]
+        currentNode.links[candidateUrl.pathname] = newNode
 
-          # external link, skip
-          if candidateUrl.host != root.url.host
-            continue
+      processed++
+      console.log "****** Processed #{processed}, current Queue #{q.length()} *******" if processed % 100 == 0
+      return eCb()
+  , WORKERS
 
-          # create a new node, and push since needed
-          if !seen[candidateUrl.pathname]
-            newNode = new Node(candidateUrl)
-            queue.push(newNode)
-            seen[candidateUrl.pathname] = newNode
-          else # already exists, so use that
-            newNode = seen[candidateUrl.pathname]
-          currentNode.links[candidateUrl.pathname] = newNode
-        return eCb()
-    , uCb
-  , (err) ->
-    return cb(err) if err
+  q.push(node)
 
     # display page and found links
+  q.drain = () ->
     keys = Object.keys(seen)
     for key in keys
       node = seen[key]
@@ -77,7 +74,7 @@ main = (node, cb) ->
         console.log '--->', link
     return cb()
 
-site = new Node(url.parse('http://www.google.com'))
+site = new Node(url.parse(SITE))
 
 main site, (err) ->
   console.log(err) if err
