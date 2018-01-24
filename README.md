@@ -5,4 +5,4 @@ yarn install
 coffee index.coffee
 
 # result
-![google terms of service](https://github.com/dstaay/crawler/msg.jpg)
+![google terms of service](https://github.com/dstaay/crawler/blob/master/msg.jpg)
